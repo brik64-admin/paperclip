@@ -21,25 +21,27 @@ Every company needs a goal — the north star that all work traces back to. Good
 
 Go to the Goals section and create your top-level company goal.
 
-## Step 3: Create the CEO Agent
+## Step 3: Create the CEO
 
-The CEO is the first agent you create. Choose an adapter type (Claude Local is a good default) and configure:
+Create the root agent in your company. Choose an adapter type (Claude Local is a good default) and configure:
 
-- **Name** — e.g. "CEO"
-- **Role** — `ceo`
+- **Name** — a descriptive operator name
+- **Role** — `ceo` for the root operator
 - **Adapter** — how the agent runs (Claude Local, Codex Local, etc.)
-- **Prompt template** — instructions for what the CEO does on each heartbeat
+- **Prompt template** — instructions for what the agent does on each heartbeat
 - **Budget** — monthly spend limit in cents
 
-The CEO's prompt should instruct it to review company health, set strategy, and delegate work to reports.
+The CEO's prompt should instruct it to review company health, set strategy, and launch the rest of the executive team.
 
-## Step 4: Build the Org Chart
+## Step 4: Launch the Executive Team
 
-From the CEO, create direct reports:
+From the CEO, create the direct reports that define the initial operating structure:
 
-- **CTO** managing engineering agents
-- **CMO** managing marketing agents
-- **Other executives** as needed
+- **CFO** managing finance and runway
+- **CMO** managing marketing and positioning
+- **COO** managing operations and execution cadence
+- **CTO** managing product and engineering
+- **CSO** reporting to the CTO for research and scientific validation
 
 Each agent gets their own adapter config, role, and budget. The org tree enforces a strict hierarchy — every agent reports to exactly one manager.
 

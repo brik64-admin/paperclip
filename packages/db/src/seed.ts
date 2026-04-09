@@ -1,99 +1,123 @@
 import { createDb } from "./client.js";
-import { companies, agents, goals, projects, issues } from "./schema/index.js";
+import { agents, companies, goals } from "./schema/index.js";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required");
 
 const db = createDb(url);
 
-console.log("Seeding database...");
+console.log("Seeding executive team demo data...");
 
 const [company] = await db
   .insert(companies)
   .values({
     name: "Paperclip Demo Co",
-    description: "A demo autonomous company",
+    description: "A blank company shell with an executive team template",
     status: "active",
     budgetMonthlyCents: 50000,
   })
   .returning();
 
+await db.insert(goals).values({
+  companyId: company!.id,
+  title: "Define the company plan",
+  description:
+    "Set the company direction, then let the CEO launch the executive team and delegate operating scope.",
+  level: "company",
+  status: "active",
+});
+
 const [ceo] = await db
   .insert(agents)
   .values({
     companyId: company!.id,
-    name: "CEO Agent",
+    name: "CEO",
     role: "ceo",
     title: "Chief Executive Officer",
     status: "idle",
+    reportsTo: null,
+    capabilities: "Launches the executive team and owns company-wide strategy.",
     adapterType: "process",
-    adapterConfig: { command: "echo", args: ["hello from ceo"] },
-    budgetMonthlyCents: 15000,
+    adapterConfig: {},
+    runtimeConfig: {},
+    budgetMonthlyCents: 0,
+    spentMonthlyCents: 0,
+    permissions: { canCreateAgents: true },
+    lastHeartbeatAt: null,
+    metadata: { template: "executive_team_v1", seat: "root" },
   })
   .returning();
 
-const [engineer] = await db
-  .insert(agents)
-  .values({
-    companyId: company!.id,
-    name: "Engineer Agent",
-    role: "engineer",
-    title: "Software Engineer",
-    status: "idle",
-    reportsTo: ceo!.id,
-    adapterType: "process",
-    adapterConfig: { command: "echo", args: ["hello from engineer"] },
-    budgetMonthlyCents: 10000,
-  })
-  .returning();
-
-const [goal] = await db
-  .insert(goals)
-  .values({
-    companyId: company!.id,
-    title: "Ship V1",
-    description: "Deliver first control plane release",
-    level: "company",
-    status: "active",
-    ownerAgentId: ceo!.id,
-  })
-  .returning();
-
-const [project] = await db
-  .insert(projects)
-  .values({
-    companyId: company!.id,
-    goalId: goal!.id,
-    name: "Control Plane MVP",
-    description: "Implement core board + agent loop",
-    status: "in_progress",
-    leadAgentId: ceo!.id,
-  })
-  .returning();
-
-await db.insert(issues).values([
+const executiveReports = [
   {
-    companyId: company!.id,
-    projectId: project!.id,
-    goalId: goal!.id,
-    title: "Implement atomic task checkout",
-    description: "Ensure in_progress claiming is conflict-safe",
-    status: "todo",
-    priority: "high",
-    assigneeAgentId: engineer!.id,
-    createdByAgentId: ceo!.id,
+    name: "CFO",
+    role: "cfo" as const,
+    title: "Chief Financial Officer",
+    capabilities: "Owns budgets, runway, and financial controls.",
   },
   {
-    companyId: company!.id,
-    projectId: project!.id,
-    goalId: goal!.id,
-    title: "Add budget auto-pause",
-    description: "Pause agent at hard budget ceiling",
-    status: "backlog",
-    priority: "medium",
-    createdByAgentId: ceo!.id,
+    name: "CMO",
+    role: "cmo" as const,
+    title: "Chief Marketing Officer",
+    capabilities: "Owns growth, positioning, and market-facing messaging.",
   },
-]);
+  {
+    name: "COO",
+    role: "coo" as const,
+    title: "Chief Operating Officer",
+    capabilities: "Owns execution flow, coordination, and operational cadence.",
+  },
+  {
+    name: "CTO",
+    role: "cto" as const,
+    title: "Chief Technology Officer",
+    capabilities: "Owns product and engineering delivery.",
+  },
+] as const;
+
+const createdExecutiveReports: Record<string, string> = {};
+
+for (const report of executiveReports) {
+  const [agent] = await db
+    .insert(agents)
+    .values({
+      companyId: company!.id,
+      name: report.name,
+      role: report.role,
+      title: report.title,
+      status: "idle",
+      reportsTo: ceo.id,
+      capabilities: report.capabilities,
+      adapterType: "process",
+      adapterConfig: {},
+      runtimeConfig: {},
+      budgetMonthlyCents: 0,
+      spentMonthlyCents: 0,
+      permissions: { canCreateAgents: false },
+      lastHeartbeatAt: null,
+      metadata: { template: "executive_team_v1", seat: "direct_report" },
+    })
+    .returning();
+  createdExecutiveReports[report.role] = agent!.id;
+}
+
+await db.insert(agents).values({
+  companyId: company!.id,
+  name: "CSO",
+  role: "cso",
+  title: "Chief Scientific Officer",
+  status: "idle",
+  reportsTo: createdExecutiveReports.cto,
+  capabilities: "Owns research, experiments, and scientific validation.",
+  adapterType: "process",
+  adapterConfig: {},
+  runtimeConfig: {},
+  budgetMonthlyCents: 0,
+  spentMonthlyCents: 0,
+  permissions: { canCreateAgents: false },
+  lastHeartbeatAt: null,
+  metadata: { template: "executive_team_v1", seat: "cto_report" },
+});
 
 console.log("Seed complete");
 process.exit(0);

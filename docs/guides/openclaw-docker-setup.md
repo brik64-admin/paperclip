@@ -39,12 +39,13 @@ What this command does:
 
 - clones/updates `openclaw/openclaw` in `/tmp/openclaw-docker`
 - builds `openclaw:local` (unless `OPENCLAW_BUILD=0`)
-- writes isolated smoke config under `~/.openclaw-paperclip-smoke/openclaw.json` and Docker `.env`
+- writes isolated smoke config under `~/.openclaw-paperclip-smoke/openclaw.json`
+- writes the Compose env file under `~/.openclaw-paperclip-smoke/openclaw.compose.env` with restrictive permissions instead of persisting secrets in `/tmp/openclaw-docker/.env`
 - pins agent model defaults to OpenAI (`openai/gpt-5.2` with OpenAI fallback)
 - starts `openclaw-gateway` via Compose (with required `/tmp` tmpfs override)
 - probes and prints a Paperclip host URL that is reachable from inside OpenClaw Docker
-- waits for health and prints:
-  - `http://127.0.0.1:18789/#token=...`
+- waits for health and prints a redacted dashboard URL by default:
+  - `http://127.0.0.1:18789/#token=<redacted>`
 - disables Control UI device pairing by default for local smoke ergonomics
 
 Environment knobs:
@@ -55,6 +56,7 @@ Environment knobs:
 - `OPENCLAW_GATEWAY_TOKEN` (default random)
 - `OPENCLAW_BUILD=0` to skip rebuild
 - `OPENCLAW_OPEN_BROWSER=1` to auto-open the URL on macOS
+- `OPENCLAW_PRINT_LIVE_DASHBOARD_URL=1` to print the live `#token=...` URL for a local-only debug flow
 - `OPENCLAW_DISABLE_DEVICE_AUTH=1` (default) disables Control UI device pairing for local smoke
 - `OPENCLAW_DISABLE_DEVICE_AUTH=0` keeps pairing enabled (then approve browser with `devices` CLI commands)
 - `OPENCLAW_MODEL_PRIMARY` (default `openai/gpt-5.2`)
@@ -249,6 +251,7 @@ OPENCLAW_EXTRA_MOUNTS=
 OPENCLAW_HOME_VOLUME=
 OPENCLAW_DOCKER_APT_PACKAGES=
 EOF
+chmod 600 .env
 
 # 7. Add tmpfs to docker-compose.yml (required — see Known Issues)
 # Add to BOTH openclaw-gateway and openclaw-cli services:

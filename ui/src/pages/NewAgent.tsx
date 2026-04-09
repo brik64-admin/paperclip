@@ -102,13 +102,6 @@ export function NewAgent() {
   }, [setBreadcrumbs]);
 
   useEffect(() => {
-    if (isFirstAgent) {
-      if (!name) setName("CEO");
-      if (!title) setTitle("CEO");
-    }
-  }, [isFirstAgent]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
     const requested = presetAdapterType;
     if (!requested) return;
     if (!SUPPORTED_ADVANCED_ADAPTER_TYPES.has(requested as CreateConfigValues["adapterType"])) {
@@ -205,7 +198,7 @@ export function NewAgent() {
         <div className="px-4 pt-4 pb-2">
           <input
             className="w-full text-lg font-semibold bg-transparent outline-none placeholder:text-muted-foreground/50"
-            placeholder="Agent name"
+            placeholder={isFirstAgent ? "CEO name" : "Agent name"}
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus
@@ -270,7 +263,7 @@ export function NewAgent() {
                 ) : (
                   <>
                     <User className="h-3 w-3 text-muted-foreground" />
-                    {isFirstAgent ? "Reports to: N/A (CEO)" : "Reports to..."}
+                    {isFirstAgent ? "Reports to: none yet" : "Reports to..."}
                   </>
                 )}
               </button>

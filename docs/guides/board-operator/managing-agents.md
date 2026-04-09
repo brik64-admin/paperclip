@@ -21,11 +21,17 @@ Agents are the employees of your autonomous company. As the board operator, you 
 Create agents from the Agents page. Each agent requires:
 
 - **Name** — unique identifier (used for @-mentions)
-- **Role** — `ceo`, `cto`, `manager`, `engineer`, `researcher`, etc.
+- **Role** — `ceo`, `cfo`, `cmo`, `coo`, `cto`, `cso`, `engineer`, `researcher`, etc.
 - **Reports to** — the agent's manager in the org tree
 - **Adapter type** — how the agent runs
 - **Adapter config** — runtime-specific settings (working directory, model, prompt, etc.)
 - **Capabilities** — short description of what this agent does
+
+The default executive template is:
+
+- `CEO` at the root of the company
+- `CFO`, `CMO`, `COO`, and `CTO` reporting to the CEO
+- `CSO` reporting to the CTO
 
 Common adapter choices:
 - `claude_local` / `codex_local` / `opencode_local` for local coding agents

@@ -5,8 +5,8 @@ import { test, expect } from "@playwright/test";
  *
  * Walks through the 4-step OnboardingWizard:
  *   Step 1 — Name your company
- *   Step 2 — Create your first agent (adapter selection + config)
- *   Step 3 — Give it something to do (task creation)
+ *   Step 2 — Create the CEO (adapter selection + config)
+ *   Step 3 — Define the CEO's first task (task creation)
  *   Step 4 — Ready to launch (summary + open issue)
  *
  * By default this runs in skip_llm mode: we do NOT assert that an LLM
@@ -17,25 +17,15 @@ import { test, expect } from "@playwright/test";
 const SKIP_LLM = process.env.PAPERCLIP_E2E_SKIP_LLM !== "false";
 
 const COMPANY_NAME = `E2E-Test-${Date.now()}`;
-const AGENT_NAME = "CEO";
+const AGENT_NAME = "First Agent";
 const TASK_TITLE = "E2E test task";
 
 test.describe("Onboarding wizard", () => {
   test("completes full wizard flow", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/onboarding");
 
     const wizardHeading = page.locator("h3", { hasText: "Name your company" });
-    const newCompanyBtn = page.getByRole("button", { name: "New Company" });
-
-    await expect(
-      wizardHeading.or(newCompanyBtn)
-    ).toBeVisible({ timeout: 15_000 });
-
-    if (await newCompanyBtn.isVisible()) {
-      await newCompanyBtn.click();
-    }
-
-    await expect(wizardHeading).toBeVisible({ timeout: 5_000 });
+    await expect(wizardHeading).toBeVisible({ timeout: 15_000 });
 
     const companyNameInput = page.locator('input[placeholder="Acme Corp"]');
     await companyNameInput.fill(COMPANY_NAME);
@@ -44,11 +34,12 @@ test.describe("Onboarding wizard", () => {
     await nextButton.click();
 
     await expect(
-      page.locator("h3", { hasText: "Create your first agent" })
+      page.locator("h3", { hasText: "Create your CEO" })
     ).toBeVisible({ timeout: 10_000 });
 
-    const agentNameInput = page.locator('input[placeholder="CEO"]');
-    await expect(agentNameInput).toHaveValue(AGENT_NAME);
+    const agentNameInput = page.locator('input[placeholder="CEO name"]');
+    await expect(agentNameInput).toHaveValue("");
+    await agentNameInput.fill(AGENT_NAME);
 
     await expect(
       page.locator("button", { hasText: "Claude Code" }).locator("..")
@@ -67,11 +58,11 @@ test.describe("Onboarding wizard", () => {
     await page.getByRole("button", { name: "Next" }).click();
 
     await expect(
-      page.locator("h3", { hasText: "Give it something to do" })
+      page.locator("h3", { hasText: "Define the CEO's first task" })
     ).toBeVisible({ timeout: 10_000 });
 
     const taskTitleInput = page.locator(
-      'input[placeholder="e.g. Research competitor pricing"]'
+      'input[placeholder="What should the CEO do first?"]'
     );
     await taskTitleInput.clear();
     await taskTitleInput.fill(TASK_TITLE);
@@ -82,9 +73,9 @@ test.describe("Onboarding wizard", () => {
       page.locator("h3", { hasText: "Ready to launch" })
     ).toBeVisible({ timeout: 10_000 });
 
-    await expect(page.locator("text=" + COMPANY_NAME)).toBeVisible();
-    await expect(page.locator("text=" + AGENT_NAME)).toBeVisible();
-    await expect(page.locator("text=" + TASK_TITLE)).toBeVisible();
+    await expect(page.getByText(COMPANY_NAME, { exact: true })).toBeVisible();
+    await expect(page.getByText(AGENT_NAME, { exact: true })).toBeVisible();
+    await expect(page.getByText(TASK_TITLE, { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Create & Open Issue" }).click();
 
@@ -105,12 +96,12 @@ test.describe("Onboarding wizard", () => {
     );
     expect(agentsRes.ok()).toBe(true);
     const agents = await agentsRes.json();
-    const ceoAgent = agents.find(
+    const firstAgent = agents.find(
       (a: { name: string }) => a.name === AGENT_NAME
     );
-    expect(ceoAgent).toBeTruthy();
-    expect(ceoAgent.role).toBe("ceo");
-    expect(ceoAgent.adapterType).toBe("process");
+    expect(firstAgent).toBeTruthy();
+    expect(firstAgent.role).toBe("ceo");
+    expect(firstAgent.adapterType).toBe("process");
 
     const issuesRes = await page.request.get(
       `${baseUrl}/api/companies/${company.id}/issues`
@@ -121,7 +112,7 @@ test.describe("Onboarding wizard", () => {
       (i: { title: string }) => i.title === TASK_TITLE
     );
     expect(task).toBeTruthy();
-    expect(task.assigneeAgentId).toBe(ceoAgent.id);
+    expect(task.assigneeAgentId).toBe(firstAgent.id);
 
     if (!SKIP_LLM) {
       await expect(async () => {

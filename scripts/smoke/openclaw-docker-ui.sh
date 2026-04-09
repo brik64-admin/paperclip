@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 log() {
   echo "[openclaw-docker-ui] $*"
@@ -54,6 +55,34 @@ require_cmd curl
 require_cmd openssl
 require_cmd grep
 
+normalize_bool() {
+  local value="${1:-}"
+  local true_value="$2"
+  local false_value="$3"
+  local name="$4"
+
+  case "$value" in
+    1|true|TRUE|True|yes|YES|Yes)
+      echo "$true_value"
+      ;;
+    0|false|FALSE|False|no|NO|No)
+      echo "$false_value"
+      ;;
+    *)
+      fail "$name must be one of: 1,0,true,false,yes,no"
+      ;;
+  esac
+}
+
+redact_dashboard_url() {
+  local url="$1"
+  if [[ "$url" == *"#token="* ]]; then
+    printf '%s\n' "${url%%#token=*}#token=<redacted>"
+    return 0
+  fi
+  printf '%s\n' "$url"
+}
+
 OPENCLAW_REPO_URL="${OPENCLAW_REPO_URL:-https://github.com/openclaw/openclaw.git}"
 OPENCLAW_DOCKER_DIR="${OPENCLAW_DOCKER_DIR:-/tmp/openclaw-docker}"
 OPENCLAW_REPO_REF="${OPENCLAW_REPO_REF:-v2026.3.2}"
@@ -73,23 +102,16 @@ OPENCLAW_OPEN_BROWSER="${OPENCLAW_OPEN_BROWSER:-0}"
 OPENCLAW_SECRETS_FILE="${OPENCLAW_SECRETS_FILE:-$HOME/.secrets}"
 # Keep default one-command UX: local smoke run should not require manual pairing.
 OPENCLAW_DISABLE_DEVICE_AUTH="${OPENCLAW_DISABLE_DEVICE_AUTH:-1}"
+OPENCLAW_PRINT_LIVE_DASHBOARD_URL="${OPENCLAW_PRINT_LIVE_DASHBOARD_URL:-0}"
 OPENCLAW_MODEL_PRIMARY="${OPENCLAW_MODEL_PRIMARY:-openai/gpt-5.2}"
 OPENCLAW_MODEL_FALLBACK="${OPENCLAW_MODEL_FALLBACK:-openai/gpt-5.2-chat-latest}"
 OPENCLAW_RESET_STATE="${OPENCLAW_RESET_STATE:-1}"
 PAPERCLIP_HOST_PORT="${PAPERCLIP_HOST_PORT:-3100}"
 PAPERCLIP_HOST_FROM_CONTAINER="${PAPERCLIP_HOST_FROM_CONTAINER:-host.docker.internal}"
+OPENCLAW_COMPOSE_ENV_FILE="${OPENCLAW_COMPOSE_ENV_FILE:-$OPENCLAW_CONFIG_DIR/openclaw.compose.env}"
 
-case "$OPENCLAW_DISABLE_DEVICE_AUTH" in
-  1|true|TRUE|True|yes|YES|Yes)
-    OPENCLAW_DISABLE_DEVICE_AUTH_JSON="true"
-    ;;
-  0|false|FALSE|False|no|NO|No)
-    OPENCLAW_DISABLE_DEVICE_AUTH_JSON="false"
-    ;;
-  *)
-    fail "OPENCLAW_DISABLE_DEVICE_AUTH must be one of: 1,0,true,false,yes,no"
-    ;;
-esac
+OPENCLAW_DISABLE_DEVICE_AUTH_JSON="$(normalize_bool "$OPENCLAW_DISABLE_DEVICE_AUTH" "true" "false" "OPENCLAW_DISABLE_DEVICE_AUTH")"
+OPENCLAW_PRINT_LIVE_DASHBOARD_URL_BOOL="$(normalize_bool "$OPENCLAW_PRINT_LIVE_DASHBOARD_URL" "1" "0" "OPENCLAW_PRINT_LIVE_DASHBOARD_URL")"
 
 if [[ -z "${OPENAI_API_KEY:-}" && -f "$OPENCLAW_SECRETS_FILE" ]]; then
   set +u
@@ -178,7 +200,8 @@ cat > "$OPENCLAW_CONFIG_DIR/openclaw.json" <<EOF
 EOF
 chmod 600 "$OPENCLAW_CONFIG_DIR/openclaw.json"
 
-cat > "$OPENCLAW_DOCKER_DIR/.env" <<EOF
+mkdir -p "$(dirname "$OPENCLAW_COMPOSE_ENV_FILE")"
+cat > "$OPENCLAW_COMPOSE_ENV_FILE" <<EOF
 OPENCLAW_CONFIG_DIR=$OPENCLAW_CONFIG_DIR
 OPENCLAW_WORKSPACE_DIR=$OPENCLAW_WORKSPACE_DIR
 OPENCLAW_GATEWAY_PORT=$OPENCLAW_GATEWAY_PORT
@@ -188,6 +211,7 @@ OPENCLAW_GATEWAY_TOKEN=$OPENCLAW_GATEWAY_TOKEN
 OPENCLAW_IMAGE=$OPENCLAW_IMAGE
 OPENAI_API_KEY=$OPENAI_API_KEY
 EOF
+chmod 600 "$OPENCLAW_COMPOSE_ENV_FILE"
 
 COMPOSE_OVERRIDE="${OPENCLAW_DOCKER_DIR}/.paperclip-openclaw.override.yml"
 cat > "$COMPOSE_OVERRIDE" <<EOF
@@ -204,6 +228,7 @@ EOF
 
 compose() {
   docker compose \
+    --env-file "$OPENCLAW_COMPOSE_ENV_FILE" \
     -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" \
     -f "$COMPOSE_OVERRIDE" \
     "$@"
@@ -243,18 +268,29 @@ fi
 
 paperclip_base_url="$(detect_paperclip_base_url || true)"
 dashboard_output="$(compose run --rm openclaw-cli dashboard --no-open)"
-dashboard_url="$(grep -Eo 'https?://[^[:space:]]+#token=[^[:space:]]+' <<<"$dashboard_output" | head -n1 || true)"
-if [[ -z "$dashboard_url" ]]; then
-  dashboard_url="http://127.0.0.1:${OPENCLAW_GATEWAY_PORT}/#token=${OPENCLAW_GATEWAY_TOKEN}"
+dashboard_url_live="$(grep -Eo 'https?://[^[:space:]]+#token=[^[:space:]]+' <<<"$dashboard_output" | head -n1 || true)"
+if [[ -z "$dashboard_url_live" ]]; then
+  dashboard_url_live="http://127.0.0.1:${OPENCLAW_GATEWAY_PORT}/#token=${OPENCLAW_GATEWAY_TOKEN}"
 fi
+dashboard_url_redacted="$(redact_dashboard_url "$dashboard_url_live")"
 
 cat <<EOF
 
 OpenClaw gateway is running.
 
 Dashboard URL:
-$dashboard_url
 EOF
+
+if [[ "$OPENCLAW_PRINT_LIVE_DASHBOARD_URL_BOOL" == "1" ]]; then
+  printf '%s\n' "$dashboard_url_live"
+else
+  printf '%s\n' "$dashboard_url_redacted"
+  cat <<EOF
+
+Live token output is suppressed by default to reduce accidental disclosure in shell history and transcripts.
+Set OPENCLAW_PRINT_LIVE_DASHBOARD_URL=1 only for a local-only debug flow when you need the tokenized URL echoed.
+EOF
+fi
 
 if [[ "$OPENCLAW_DISABLE_DEVICE_AUTH_JSON" == "true" ]]; then
   cat <<EOF
@@ -285,8 +321,8 @@ EOF
   cat <<EOF
 
 Useful commands:
-  docker compose -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" logs -f openclaw-gateway
-  docker compose -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" down
+  docker compose --env-file "$OPENCLAW_COMPOSE_ENV_FILE" -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" logs -f openclaw-gateway
+  docker compose --env-file "$OPENCLAW_COMPOSE_ENV_FILE" -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" down
 EOF
 else
   cat <<EOF
@@ -318,12 +354,12 @@ EOF
   cat <<EOF
 
 Useful commands:
-  docker compose -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" logs -f openclaw-gateway
-  docker compose -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" down
+  docker compose --env-file "$OPENCLAW_COMPOSE_ENV_FILE" -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" logs -f openclaw-gateway
+  docker compose --env-file "$OPENCLAW_COMPOSE_ENV_FILE" -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE" down
 EOF
 fi
 
 if [[ "$OPENCLAW_OPEN_BROWSER" == "1" ]] && command -v open >/dev/null 2>&1; then
   log "opening dashboard in browser"
-  open "$dashboard_url"
+  open "$dashboard_url_live"
 fi
