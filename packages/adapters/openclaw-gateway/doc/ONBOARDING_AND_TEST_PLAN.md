@@ -57,12 +57,13 @@ Security/pairing defaults:
 ```bash
 OPENCLAW_DOCKER_DIR=/tmp/openclaw-docker
 if [ -d "$OPENCLAW_DOCKER_DIR" ]; then
-  docker compose -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" down --remove-orphans || true
+  docker compose --env-file "$HOME/.openclaw-paperclip-smoke/openclaw.compose.env" -f "$OPENCLAW_DOCKER_DIR/docker-compose.yml" down --remove-orphans || true
 fi
 
 docker image rm openclaw:local || true
 OPENCLAW_RESET_STATE=1 OPENCLAW_BUILD=1 ./scripts/smoke/openclaw-docker-ui.sh
 ```
+The smoke script now redacts the dashboard token from stdout by default and keeps Compose secrets under `~/.openclaw-paperclip-smoke/openclaw.compose.env` with restrictive permissions.
 
 ### 1) Start Paperclip
 ```bash

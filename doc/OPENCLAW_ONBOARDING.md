@@ -14,7 +14,9 @@ curl -sS http://127.0.0.1:3100/api/health | jq
 ```bash
 OPENCLAW_RESET_STATE=1 OPENCLAW_BUILD=1 ./scripts/smoke/openclaw-docker-ui.sh
 ```
-Open the printed `Dashboard URL` (includes `#token=...`) in your browser.
+Open the printed `Dashboard URL` in your browser.
+By default the script redacts `#token=...` from stdout and keeps Compose secrets in `~/.openclaw-paperclip-smoke/openclaw.compose.env` with restrictive permissions.
+If you explicitly need the live tokenized URL echoed for a local-only debug flow, rerun with `OPENCLAW_PRINT_LIVE_DASHBOARD_URL=1`.
 
 3. In Paperclip UI, go to `http://127.0.0.1:3100/CLA/company/settings`.
 

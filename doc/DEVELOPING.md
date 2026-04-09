@@ -412,6 +412,12 @@ pnpm smoke:openclaw-docker-ui
 
 This script lives at `scripts/smoke/openclaw-docker-ui.sh` and automates clone/build/config/start for Compose-based local OpenClaw UI testing.
 
+Secret-handling behavior for this smoke script:
+
+- stores Compose secrets under `~/.openclaw-paperclip-smoke/openclaw.compose.env` with restrictive permissions instead of writing `/tmp/openclaw-docker/.env`
+- redacts the dashboard `#token=...` fragment from stdout by default
+- set `OPENCLAW_PRINT_LIVE_DASHBOARD_URL=1` only when you explicitly need the live tokenized URL echoed for a local-only debug flow
+
 Pairing behavior for this smoke script:
 
 - default `OPENCLAW_DISABLE_DEVICE_AUTH=1` (no Control UI pairing prompt for local smoke; no extra pairing env vars required)

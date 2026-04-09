@@ -266,7 +266,7 @@ sleep 15
 docker compose run --rm openclaw-cli dashboard --no-open
 ```
 
-The dashboard URL will look like: `http://127.0.0.1:18789/#token=<your-token>`
+The live dashboard URL will look like: `http://127.0.0.1:18789/#token=<your-token>`
 
 ### Docker Compose Management
 
